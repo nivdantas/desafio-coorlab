@@ -3,23 +3,22 @@
     <b-navbar toggleable="lg" type="dark" variant="info">
       <b-navbar-brand class="ml-2"> </b-navbar-brand>
     </b-navbar>
-    <div class="dim" v-if="exibirAviso"></div>
     <div class="grid">
       <div class="navfrete">
-        <img class="logo" src="../assets/logo.png" />
+        <img class="logo" src="../assets/logo.png" alt="" />
         <h1>{{ appName }}</h1>
       </div>
 
-      <div class="formulario">
+      <form class="formulario" @submit.prevent="filtrarValorFrete">
         <div class="form-group">
           <h2>
-            <img class="maplogo" src="../assets/maplogo.svg" /> Insira o destino
+            <img class="maplogo" src="../assets/maplogo.svg" alt="" /> Insira o destino
             e o peso
           </h2>
           <label for="city"><b>Cidade de destino:</b></label>
           <!-- Seleção da cidade com o uso de v-model e v-for. -->
           <select id="city" class="form-control" v-model="cidadeSelecionada">
-            <option class="first-option" disabled selected value="">
+            <option class="first-option" disabled value="">
               Selecione o destino
             </option>
             <option v-for="city in cidades" :key="city">{{ city }}</option>
@@ -30,86 +29,43 @@
           <label for="peso"><b>Peso do frete:</b></label>
           <input
             type="number"
+            step="any"
             id="peso"
             class="form-control"
             placeholder="Peso da carga em kg"
             v-model="pesoTempoReal"
           />
         </div>
-        <button class="btn btn-primary" @click="filtrarValorFrete">
+        <button type="submit" class="btn btn-primary" :disabled="estadoApi !== 'pronta'">
           Analisar
         </button>
-      </div>
-      <div class="resultados">
-        <transition name="semDados">
-          <div class="semDados" v-if="!freteRapido && !freteBarato">
-            <h2>Nenhum dado selecionado.</h2>
-          </div>
-        </transition>
-        <!-- Divisão com v-if para peso, e tipo de frete. -->
-        <transition>
-          <div class="valorFrete" v-if="freteBarato && peso <= 100">
-            <img src="../assets/freteBarato.svg" />
-            <p><b>Frete com menor valor</b></p>
-            <p>Transportadora: {{ freteBarato.name }}</p>
-            <p>Tempo de entrega: {{ freteBarato.lead_time }} horas</p>
-            <p>
-              Custo total: <b>R${{ formatarCustoTotalEconomica() }}</b>
-            </p>
-          </div>
-        </transition>
-
-        <transition>
-          <div class="valorFrete" v-if="freteBarato && peso > 100">
-            <img src="../assets/freteBarato.svg" />
-            <p><b>Frete com menor valor</b></p>
-            <p>Transportadora: {{ freteBarato.name }}</p>
-            <p>Tempo de entrega: {{ freteBarato.lead_time }} horas</p>
-            <p>
-              Custo total: <b>R$ {{ formatarCustoTotalEconomica() }}</b>
-            </p>
-          </div>
-        </transition>
-        <transition>
-          <div class="valorFrete" v-if="freteRapido && peso > 100">
-            <img src="../assets/freteRapido.svg" />
-            <p><b>Frete mais rápido</b></p>
-            <p>Transportadora: {{ freteRapido.name }}</p>
-            <p>Tempo de entrega: {{ freteRapido.lead_time }} horas</p>
-            <p>
-              Custo total: <b>R${{ formatarCustoTotalRapida() }}</b>
-            </p>
-          </div>
-        </transition>
-        <transition>
-          <div class="valorFrete" v-if="freteRapido && peso <= 100">
-            <img src="../assets/freteRapido.svg" />
-            <p><b>Frete mais rápido</b></p>
-            <p>Transportadora: {{ freteRapido.name }}</p>
-            <p>Tempo de entrega: {{ freteRapido.lead_time }} horas</p>
-            <p>
-              Custo total: <b>R$ {{ formatarCustoTotalRapida() }}</b>
-            </p>
-          </div>
-        </transition>
-        <transition>
-          <!-- Botão para limpar os resultados. -->
-          <button
-            @click="limparFretes"
-            class="limpar"
-            v-if="freteRapido && freteBarato && peso"
-          >
-            Limpar
-          </button>
-        </transition>
-        <transition>
-          <!--  Aviso para caso dados não tenham sido inseridos pelo usuário. -->
-          <div v-if="exibirAviso" class="aviso">
-            <img src="../assets/warning.svg" />
-            <h3>Insira os valores para realizar a análise.</h3>
-            <button @click="fecharAviso">Fechar</button>
-          </div>
-        </transition>
+        <p v-if="estadoApi === 'carregando'" role="status">Carregando destinos…</p>
+        <p v-if="mensagem" role="alert">{{ mensagem }}</p>
+        <button v-if="estadoApi === 'erro'" type="button" @click="carregarFretes">
+          Tentar novamente
+        </button>
+      </form>
+      <div class="resultados" aria-live="polite">
+        <div class="semDados" v-if="!freteBarato && estadoApi === 'pronta'">
+          <h2>Nenhum dado selecionado.</h2>
+        </div>
+        <div class="valorFrete" v-if="freteBarato">
+          <img src="../assets/freteBarato.svg" alt="" />
+          <p><b>Frete com menor valor</b></p>
+          <p>Transportadora: {{ freteBarato.name }}</p>
+          <p>Tempo de entrega: {{ freteBarato.lead_time }} horas</p>
+          <p>Custo total: <b>{{ formatarCustoTotal(freteBarato) }}</b></p>
+        </div>
+        <div class="valorFrete" v-if="freteRapido">
+          <img src="../assets/freteRapido.svg" alt="" />
+          <p><b>Frete mais rápido</b></p>
+          <p>Transportadora: {{ freteRapido.name }}</p>
+          <p>Tempo de entrega: {{ freteRapido.lead_time }} horas</p>
+          <p>Custo total: <b>{{ formatarCustoTotal(freteRapido) }}</b></p>
+        </div>
+        <button v-if="freteBarato" type="button" class="limpar" @click="limparFretes">
+          Limpar
+        </button>
       </div>
     </div>
   </div>
@@ -118,19 +74,32 @@
 <script>
 import { BNavbar, BNavbarBrand } from "bootstrap-vue";
 
+const moeda = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+function lerNumero(texto, unidade) {
+  const valor = texto.replace(unidade, "").trim();
+  return valor === "" ? NaN : Number(valor);
+}
+
+function tarifaPorPeso(peso) {
+  return peso <= 100 ? "cost_transport_light" : "cost_transport_heavy";
+}
+
 export default {
   components: {
     BNavbar,
     BNavbarBrand,
   },
   data() {
-    const appName = "";
-
     return {
-      appName,
+      appName: "Melhor Frete",
       pesoTempoReal: null,
       peso: 0,
-      exibirAviso: false,
+      estadoApi: "carregando",
+      mensagem: "",
       cidadeSelecionada: "",
       cidades: [],
       freteBarato: null,
@@ -139,108 +108,73 @@ export default {
     };
   },
   created() {
-    this.appName = "Melhor Frete";
-    const apiUrl = "http://localhost:3000/transport";
-
-    // Fetch nos dados da API
-    fetch(apiUrl)
-      .then((response) => response.json())
-      .then((data) => {
-        // Armazenando o dataset em uma variável para utilização nos methods.
-        this.apiData = data;
-
-        // Retornando as cidades únicas para o objeto cidades e formatando os dados para tipo Float/Inteiro.
-        let cidadesUnicas = {};
-        for (let i = 0; i < data.length; i++) {
-          let obj = data[i];
-          cidadesUnicas[obj.city] = true;
-          this.apiData[i].cost_transport_light = parseFloat(
-            this.apiData[i].cost_transport_light.replace(/[^0-9.]/g, "")
-          );
-          this.apiData[i].cost_transport_heavy = parseFloat(
-            this.apiData[i].cost_transport_heavy.replace(/[^0-9.]/g, "")
-          );
-          this.apiData[i].lead_time = parseInt(this.apiData[i].lead_time);
-        }
-        // Pegando cidades únicas para valor do formulário.
-        this.cidades = Object.keys(cidadesUnicas);
-      })
-      .catch((error) => {
-        console.error("Erro ao obter dados do frete:", error);
-      });
+    this.carregarFretes();
   },
-  watch: {
-    // Ver as mudanças do peso em tempo real.
-    pesoTempoReal(newValue) {
-      this.pesoTempoReal = parseFloat(newValue);
-    },
-  },
-
   methods: {
-    // Implemente aqui os metodos utilizados na pagina
+    async carregarFretes() {
+      this.estadoApi = "carregando";
+      this.mensagem = "";
+
+      try {
+        const response = await fetch("http://localhost:3000/transport");
+        if (!response.ok) throw new Error("Falha na API de fretes");
+
+        const data = await response.json();
+        const fretes = data.map((frete) => ({
+          ...frete,
+          cost_transport_light: lerNumero(frete.cost_transport_light, /^R\$/),
+          cost_transport_heavy: lerNumero(frete.cost_transport_heavy, /^R\$/),
+          lead_time: lerNumero(frete.lead_time, /h$/),
+        }));
+        const dadosInvalidos = fretes.some((frete) =>
+          typeof frete.name !== "string" || !frete.name.trim() ||
+          typeof frete.city !== "string" || !frete.city.trim() ||
+          !Number.isFinite(frete.cost_transport_light) || frete.cost_transport_light < 0 ||
+          !Number.isFinite(frete.cost_transport_heavy) || frete.cost_transport_heavy < 0 ||
+          !Number.isFinite(frete.lead_time) || frete.lead_time < 0
+        );
+        if (!fretes.length || dadosInvalidos) throw new Error("Dados de frete indisponíveis");
+
+        this.apiData = fretes;
+        this.cidades = [...new Set(fretes.map((frete) => frete.city))];
+        this.estadoApi = "pronta";
+      } catch {
+        this.estadoApi = "erro";
+        this.mensagem = "Não foi possível carregar os destinos. Verifique se a API está disponível.";
+      }
+    },
     filtrarValorFrete() {
-      // Filtrando para pegar somente a cidade selecionada.
-      const freteFiltrado = this.apiData.filter(
-        (frete) => frete.city === this.cidadeSelecionada
-      );
-      console.log(freteFiltrado);
-      // Definição do peso baseado no input.
-      this.peso = this.pesoTempoReal;
-      if (!this.cidadeSelecionada || !this.peso) {
-        this.exibirAviso = true;
-        return -1;
-      }
-      // Função sort para menor preço, dividindo em pesos.
-      if (this.peso <= 100) {
-        freteFiltrado.sort(
-          (a, b) => a.cost_transport_light - b.cost_transport_light
-        );
-        this.freteBarato = freteFiltrado[0];
-      } else if (this.peso > 100) {
-        freteFiltrado.sort(
-          (a, b) => a.cost_transport_heavy - b.cost_transport_heavy
-        );
-        this.freteBarato = freteFiltrado[0];
-      }
-      // Função sort para menor tempo.
-      freteFiltrado.sort((a, b) => a.lead_time - b.lead_time);
-      this.freteRapido = freteFiltrado[0];
-    },
-    // Método para formatar o custo total economico.
-    formatarCustoTotalEconomica() {
-      let custoTotal;
-      if (this.peso <= 100) {
-        custoTotal = this.freteBarato.cost_transport_light * this.peso;
+      if (this.estadoApi !== "pronta") return;
 
-        return custoTotal.toFixed(2);
-      } else if (this.peso > 100) {
-        custoTotal = this.freteBarato.cost_transport_heavy * this.peso;
-
-        return custoTotal.toFixed(2);
+      const peso = Number(this.pesoTempoReal);
+      if (!this.cidadeSelecionada || !Number.isFinite(peso) || peso <= 0) {
+        this.mensagem = "Selecione uma cidade e insira um peso maior que zero.";
+        return;
       }
-      // Método para formatar o custo total frete rápido.
-    },
-    formatarCustoTotalRapida() {
-      let custoTotal;
-      if (this.peso <= 100) {
-        custoTotal = this.freteRapido.cost_transport_light * this.peso;
 
-        return custoTotal.toFixed(2);
-      } else if (this.peso > 100) {
-        custoTotal = this.freteRapido.cost_transport_heavy * this.peso;
-
-        return custoTotal.toFixed(2);
+      const fretes = this.apiData.filter((frete) => frete.city === this.cidadeSelecionada);
+      if (!fretes.length) {
+        this.mensagem = "Nenhum frete disponível para esta cidade.";
+        return;
       }
+
+      const tarifa = tarifaPorPeso(peso);
+      fretes.sort((a, b) => a[tarifa] - b[tarifa]);
+      this.freteBarato = fretes[0];
+      fretes.sort((a, b) => a.lead_time - b.lead_time);
+      this.freteRapido = fretes[0];
+      this.peso = peso;
+      this.mensagem = "";
     },
-    // Método para fechar o aviso.
-    fecharAviso() {
-      this.exibirAviso = false;
+    formatarCustoTotal(frete) {
+      return moeda.format(frete[tarifaPorPeso(this.peso)] * this.peso);
     },
-    // Método para limpar os resultados, junto com os valores inseridos pelo usuário no formulário.
     limparFretes() {
       this.freteRapido = null;
       this.freteBarato = null;
       this.pesoTempoReal = null;
+      this.peso = 0;
+      this.mensagem = "";
       this.cidadeSelecionada = "";
     },
   },
@@ -421,67 +355,8 @@ select:focus {
   font-size: 20px;
 }
 
-.aviso {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: absolute;
-  background-color: #fff;
-  border-radius: 10px;
-  gap: 30px;
-  flex-direction: column;
-  width: 750px;
-  height: 375px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
-  z-index: 5;
-}
-
-.aviso button {
-  width: 200px;
-  height: 30px;
-  background-color: #7195bf;
-  color: #363636;
-  font-weight: bolder;
-  border: none;
-  border-radius: 5px;
-}
-
 .first-option {
   color: gray;
-}
-
-.v-enter-active {
-  transition: opacity 3s;
-}
-
-.v-leave-active {
-  transition: opacity 0.5s;
-}
-
-.v-enter,
-.v-leave-to {
-  opacity: 0;
-}
-
-.semDados-enter {
-  opacity: 0;
-}
-
-.semDados-enter-active {
-  transition: opacity 7s;
-}
-
-.dim {
-  height: 100%;
-  width: 100%;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 1 !important;
-  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .limpar {
